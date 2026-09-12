@@ -582,9 +582,10 @@ function processFrame(now) {
   if (prevSample !== null) {
     const diff = Math.abs(avg - prevSample);
     const threshold = sensitivityToThreshold(Number(sensSlider.value));
-    const pct = Math.min(100, (diff / (threshold * 2.2)) * 100);
+    const ratio = diff / threshold;
+    const pct = Math.min(100, (ratio * 100) / 2.2);
     meterFill.style.width = pct + "%";
-    meterFill.style.background = diff > threshold ? "#4FAE71" : pct > 55 ? "#E8A33D" : "#5A5D68";
+    meterFill.style.background = ratio > 1 ? "#4FAE71" : ratio > 0.5 ? "#E8A33D" : "#5A5D68";
     const minGapMs = Number(gapSlider.value) * 100;
     if (armed && diff > threshold && !triggered && now - lastLapTime > minGapMs) {
       triggered = true; lastTriggerAt = now; registerLap(now);
