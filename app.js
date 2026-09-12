@@ -297,6 +297,7 @@ async function openRace(race) {
   recordRaceName.textContent = race.name;
   recordTrackName.textContent = race.track;
   armed = false;
+  raceStarted = false;
   triggered = false;
   mainBtn.textContent = "Start";
   mainBtn.classList.remove("stop");
@@ -370,6 +371,7 @@ function renderPills() {
 function selectDriverForRace(id) {
   currentDriverId = id;
   armed = false;
+  raceStarted = false;
   triggered = false;
   mainBtn.textContent = "Start";
   mainBtn.classList.remove("stop");
@@ -398,7 +400,7 @@ let gatePos = 0.5;
 const thickness = 0.09;
 
 let armed = false;
-let startTime = 0;
+let raceStarted = false; // has the first (start-line) crossing happened since Start was pressed?
 let lastLapTime = 0;
 
 let prevSample = null;
@@ -588,7 +590,15 @@ function processFrame(now) {
     meterFill.style.background = ratio > 1 ? "#4FAE71" : ratio > 0.5 ? "#E8A33D" : "#5A5D68";
     const minGapMs = Number(gapSlider.value) * 100;
     if (armed && diff > threshold && !triggered && now - lastLapTime > minGapMs) {
-      triggered = true; lastTriggerAt = now; registerLap(now);
+      triggered = true; lastTriggerAt = now;
+      if (!raceStarted) {
+        raceStarted = true;
+        lastLapTime = now;
+        beep();
+        statusText.textContent = "go!";
+      } else {
+        registerLap(now);
+      }
     } else if (diff < threshold * 0.5) {
       triggered = false;
     }
@@ -624,8 +634,7 @@ function beep() {
 function registerLap(now) {
   if (!currentDriverId) return;
   const mine = lapsFor(currentDriverId);
-  const from = lastLapTime || startTime;
-  const duration_ms = Math.round(now - from);
+  const duration_ms = Math.round(now - lastLapTime);
   lastLapTime = now;
   const lap_number = mine.length ? Math.max(...mine.map((l) => l.lap_number)) + 1 : 1;
   const lap = { id: null, driver_id: currentDriverId, lap_number, duration_ms };
@@ -685,7 +694,7 @@ mainBtn.addEventListener("click", () => {
     ensureAudio();
     requestWakeLock();
     armed = true;
-    startTime = performance.now();
+    raceStarted = false;
     lastLapTime = 0;
     triggered = false;
     mainBtn.textContent = "Stop";
@@ -693,6 +702,7 @@ mainBtn.addEventListener("click", () => {
     statusText.textContent = "waiting for first crossing";
   } else {
     armed = false;
+    raceStarted = false;
     releaseWakeLock();
     mainBtn.textContent = "Start";
     mainBtn.classList.remove("stop");
