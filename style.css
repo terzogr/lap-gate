@@ -78,7 +78,7 @@ h1{ font-size:17px; font-weight:600; margin:0; letter-spacing:.2px; }
 
 .new-race{ display:flex; flex-direction:column; gap:8px; }
 
-.pills{ display:flex; gap:7px; overflow-x:auto; padding-bottom:2px; margin-top:-2px; }
+.pills{ display:flex; gap:7px; overflow-x:auto; padding-bottom:2px; margin-top:-2px; flex-shrink:0; }
 .pills::-webkit-scrollbar{ display:none; }
 .pill{
   flex:none; display:flex; align-items:baseline; gap:6px;
