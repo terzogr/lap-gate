@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Lap Gate</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #14151A;
+    --panel: #1B1D24;
+    --panel-line: #2A2C33;
+    --text: #EDEAE3;
+    --text-dim: #8A8D97;
+    --amber: #E8A33D;
+    --green: #4FAE71;
+    --red: #D1453B;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Space Grotesk', system-ui, sans-serif;
+    font-variant-numeric: tabular-nums;
+    overscroll-behavior:none;
+    -webkit-user-select:none; user-select:none;
+    display:flex; justify-content:center;
+  }
+  .app{
+    width:100%; max-width:520px;
+    min-height:100vh;
+    min-height:100dvh;
+    display:flex; flex-direction:column;
+    padding:14px 14px calc(14px + env(safe-area-inset-bottom));
+    gap:10px;
+  }
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:2px 2px 0;
+  }
+  .brand{ display:flex; align-items:baseline; gap:8px; }
+  .brand .mark{
+    width:10px; height:10px; border-radius:50%;
+    background:var(--text-dim);
+    display:inline-block;
+    transition:background .2s;
+  }
+  .brand .mark.armed{ background:var(--green); box-shadow:0 0 10px var(--green); }
+  h1{ font-size:17px; font-weight:600; margin:0; letter-spacing:.2px; }
+  .status{ font-size:12px; color:var(--text-dim); }
+
+  .driver-bar{
+    display:flex; gap:8px;
+  }
+  .driver-bar input{
+    flex:1; min-width:0;
+    background:var(--panel); border:1px solid var(--panel-line); color:var(--text);
+    font-family:inherit; font-size:14px; font-weight:500;
+    padding:11px 13px; border-radius:10px;
+  }
+  .driver-bar input::placeholder{ color:var(--text-dim); }
+  .driver-bar button{
+    background:var(--amber); color:#241705; font-weight:700; font-size:13px;
+    padding:0 16px; border-radius:10px;
+  }
+  .driver-pills{
+    display:flex; gap:7px; overflow-x:auto; padding-bottom:2px;
+  }
+  .driver-pills::-webkit-scrollbar{ display:none; }
+  .pill{
+    flex:none; display:flex; align-items:baseline; gap:6px;
+    background:var(--panel); border:1px solid var(--panel-line); color:var(--text-dim);
+    font-size:12.5px; font-weight:500; padding:7px 12px; border-radius:999px; white-space:nowrap;
+  }
+  .pill .pb{ color:var(--green); font-weight:600; }
+  .pill.active{ border-color:var(--amber); color:var(--text); background:rgba(232,163,61,.1); }
+
+  .camera-card{
+    position:relative;
+    background:#000;
+    border-radius:14px;
+    overflow:hidden;
+    border:1px solid var(--panel-line);
+  }
+  .camera-wrap{ position:relative; width:100%; }
+  video{ display:block; width:100%; height:100%; object-fit:cover; }
+  canvas.overlay{ position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
+  .cam-msg{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    text-align:center; padding:24px; color:var(--text-dim); font-size:14px; background:rgba(0,0,0,.55);
+  }
+  .cam-msg button{ margin-top:10px; }
+  .cam-controls{
+    position:absolute; top:10px; right:10px; display:flex; gap:8px; align-items:center;
+  }
+  .chip{
+    background:rgba(20,21,26,.7);
+    border:1px solid rgba(255,255,255,.12);
+    color:var(--text);
+    font-family:inherit; font-size:12px; font-weight:500;
+    padding:7px 11px; border-radius:999px;
+    display:flex; align-items:center; gap:6px;
+  }
+  select.chip{ -webkit-appearance:none; appearance:none; max-width:120px; }
+
+  .meter{
+    height:5px; border-radius:3px; background:var(--panel-line); overflow:hidden; margin-top:2px;
+  }
+  .meter-fill{
+    height:100%; width:0%; background:var(--text-dim); transition:background .15s;
+  }
+
+  .stats{
+    display:grid; grid-template-columns: 1.3fr 1fr 1fr; gap:10px;
+  }
+  .stat{
+    background:var(--panel); border:1px solid var(--panel-line); border-radius:12px;
+    padding:12px 14px;
+  }
+  .stat .label{ font-size:11px; color:var(--text-dim); font-weight:500; }
+  .stat .value{ font-size:30px; font-weight:700; line-height:1.15; margin-top:2px; }
+  .stat.laps .value{ color:var(--amber); font-size:36px; }
+  .stat .value.small{ font-size:22px; }
+  .stat .value.best{ color:var(--green); }
+
+  .laps-panel{
+    background:var(--panel); border:1px solid var(--panel-line); border-radius:12px;
+    flex:1; min-height:90px; max-height:190px; overflow-y:auto;
+  }
+  .laps-panel .empty{ padding:16px; color:var(--text-dim); font-size:13px; text-align:center; }
+  .lap-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:9px 14px; border-bottom:1px solid var(--panel-line);
+    font-size:14px;
+  }
+  .lap-row:last-child{ border-bottom:none; }
+  .lap-row .n{ color:var(--text-dim); width:34px; font-weight:500; }
+  .lap-row .t{ font-weight:600; }
+  .lap-row .d{ font-size:12px; }
+  .lap-row .d.best{ color:var(--green); }
+  .lap-row .d.off{ color:var(--text-dim); }
+  .lap-row.pb{ background:rgba(79,174,113,.08); }
+
+  .controls{ display:flex; flex-direction:column; gap:10px; }
+  .primary-row{ display:flex; gap:10px; }
+  button{
+    font-family:inherit; border:none; cursor:pointer;
+    border-radius:12px; font-weight:600; letter-spacing:.2px;
+  }
+  .btn-main{
+    flex:1; padding:16px; font-size:16px; background:var(--green); color:#0E1410;
+  }
+  .btn-main.stop{ background:var(--red); color:#1A0D0B; }
+  .btn-reset{
+    padding:16px 18px; font-size:14px; background:var(--panel); color:var(--text);
+    border:1px solid var(--panel-line);
+  }
+  details.calib{
+    background:var(--panel); border:1px solid var(--panel-line); border-radius:12px; padding:4px 14px;
+  }
+  details.calib summary{
+    padding:10px 0; font-size:13px; color:var(--text-dim); font-weight:500; cursor:pointer;
+    list-style:none; display:flex; justify-content:space-between; align-items:center;
+  }
+  details.calib summary::-webkit-details-marker{ display:none; }
+  .calib-row{ padding:6px 0 14px; }
+  .calib-row .row-label{
+    display:flex; justify-content:space-between; font-size:12px; color:var(--text-dim); margin-bottom:6px;
+  }
+  input[type=range]{ width:100%; accent-color:var(--amber); }
+
+  .lb-row{
+    display:flex; align-items:center; gap:10px;
+    padding:9px 0; border-bottom:1px solid var(--panel-line); font-size:13.5px;
+  }
+  .lb-row:last-child{ border-bottom:none; }
+  .lb-row .rank{ width:18px; color:var(--text-dim); font-weight:600; }
+  .lb-row .name{ flex:1; font-weight:600; }
+  .lb-row .best{ font-weight:600; color:var(--green); width:64px; text-align:right; }
+  .lb-row .gap{ color:var(--text-dim); width:64px; text-align:right; font-size:12px; }
+  .lb-row.leader .name{ color:var(--amber); }
+
+  @media (min-height: 760px){
+    .laps-panel{ max-height:250px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="brand">
+      <span class="mark" id="armedDot"></span>
+      <h1>Lap Gate</h1>
+    </div>
+    <div class="status" id="statusText">idle</div>
+  </header>
+
+  <div class="driver-bar">
+    <input id="driverInput" placeholder="Driver name" maxlength="24" value="Driver 1">
+    <button id="driverGoBtn">Set</button>
+  </div>
+  <div class="driver-pills" id="driverPills"></div>
+
+  <div class="camera-card">
+    <div class="camera-wrap" id="camWrap">
+      <video id="video" autoplay playsinline webkit-playsinline muted></video>
+      <canvas class="overlay" id="overlay"></canvas>
+      <div class="cam-msg" id="camMsg">
+        Point the camera so the finish line falls across the gate, then drag the line to match it.
+        <div><button class="btn-reset" id="startCamBtn">Enable camera</button></div>
+      </div>
+      <div class="cam-controls">
+        <select class="chip" id="camSelect" style="display:none;"></select>
+        <button class="chip" id="orientBtn">↕ Horizontal</button>
+        <button class="chip" id="flipBtn">⟲ Flip</button>
+      </div>
+    </div>
+    <div style="padding:8px 12px 10px;">
+      <div class="meter"><div class="meter-fill" id="meterFill"></div></div>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat laps">
+      <div class="label">LAPS</div>
+      <div class="value" id="lapCount">0</div>
+    </div>
+    <div class="stat">
+      <div class="label">LAST LAP</div>
+      <div class="value small" id="lastLap">—</div>
+    </div>
+    <div class="stat">
+      <div class="label">BEST</div>
+      <div class="value small best" id="bestLap">—</div>
+    </div>
+  </div>
+
+  <div class="laps-panel" id="lapsPanel">
+    <div class="empty">Laps will appear here once you start.</div>
+  </div>
+
+  <details class="calib" id="lbDetails" open>
+    <summary>Leaderboard<span id="lbSummary" style="font-weight:400;">1 driver</span></summary>
+    <div id="lbList" style="padding-bottom:8px;"></div>
+  </details>
+
+  <div class="controls">
+    <div class="primary-row">
+      <button class="btn-main" id="mainBtn">Start</button>
+      <button class="btn-reset" id="resetBtn">Reset</button>
+    </div>
+    <details class="calib">
+      <summary>Calibrate<span id="calibSummary" style="font-weight:400;">sensitivity 50 · min gap 1.5s</span></summary>
+      <div class="calib-row">
+        <div class="row-label"><span>Sensitivity</span><span id="sensVal">50</span></div>
+        <input type="range" id="sensSlider" min="1" max="100" value="50">
+      </div>
+      <div class="calib-row">
+        <div class="row-label"><span>Min. time between laps</span><span id="gapVal">1.5s</span></div>
+        <input type="range" id="gapSlider" min="3" max="50" value="15">
+      </div>
+    </details>
+  </div>
+
+</div>
+
+<canvas id="sample" width="160" height="90" style="display:none;"></canvas>
+
+<script>
+(() => {
+  const video = document.getElementById('video');
+  const overlay = document.getElementById('overlay');
+  const octx = overlay.getContext('2d');
+  const camWrap = document.getElementById('camWrap');
+  const camMsg = document.getElementById('camMsg');
+  const startCamBtn = document.getElementById('startCamBtn');
+  const flipBtn = document.getElementById('flipBtn');
+  const orientBtn = document.getElementById('orientBtn');
+  const camSelect = document.getElementById('camSelect');
+  const meterFill = document.getElementById('meterFill');
+  const armedDot = document.getElementById('armedDot');
+  const statusText = document.getElementById('statusText');
+  const mainBtn = document.getElementById('mainBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const lapCountEl = document.getElementById('lapCount');
+  const lastLapEl = document.getElementById('lastLap');
+  const bestLapEl = document.getElementById('bestLap');
+  const lapsPanel = document.getElementById('lapsPanel');
+  const sensSlider = document.getElementById('sensSlider');
+  const gapSlider = document.getElementById('gapSlider');
+  const sensVal = document.getElementById('sensVal');
+  const gapVal = document.getElementById('gapVal');
+  const calibSummary = document.getElementById('calibSummary');
+  const driverInput = document.getElementById('driverInput');
+  const driverGoBtn = document.getElementById('driverGoBtn');
+  const driverPills = document.getElementById('driverPills');
+  const lbSummary = document.getElementById('lbSummary');
+  const lbList = document.getElementById('lbList');
+
+  const sample = document.getElementById('sample');
+  const sctx = sample.getContext('2d', { willReadFrequently: true });
+
+  let facingMode = 'environment';
+  let stream = null;
+  let devices = [];
+  let currentDeviceId = null;
+
+  let orientation = 'horizontal';
+  let gatePos = 0.5;
+  const thickness = 0.09;
+
+  let armed = false;
+  let startTime = 0;
+  let lastLapTime = 0;
+
+  // --- multi-driver state ---
+  let drivers = {};          // name -> { laps: [{n,duration,best}], bestDuration }
+  let currentDriver = null;
+  function ensureDriver(name){
+    if(!drivers[name]) drivers[name] = { laps: [], bestDuration: Infinity };
+    return drivers[name];
+  }
+  ensureDriver('Driver 1');
+  currentDriver = 'Driver 1';
+
+  let prevSample = null;
+  let triggered = false;
+  let lastTriggerAt = 0;
+  let dragging = false;
+  let lastProcessAt = 0;
+  let audioCtx = null;
+
+  function sensitivityToThreshold(s){
+    const sMin = 2.5, sMax = 32;
+    return sMax - (sMax - sMin) * (s / 100);
+  }
+  function fmt(ms){ return (ms/1000).toFixed(2) + 's'; }
+
+  // --- camera (Samsung Internet friendly) ---
+  async function startCamera(){
+    if(!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      camMsg.style.display = 'flex';
+      camMsg.textContent = 'This browser can\\'t access the camera here. Make sure the page was opened as a normal https:// page (not an in-app preview), then reload.';
+      return;
+    }
+    try{
+      if(stream){ stream.getTracks().forEach(t => t.stop()); }
+      const constraints = currentDeviceId
+        ? { video: { deviceId: { exact: currentDeviceId }, width:{ideal:1280}, height:{ideal:720} }, audio:false }
+        : { video: { facingMode: { ideal: facingMode }, width:{ideal:1280}, height:{ideal:720} }, audio:false };
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = stream;
+      const playPromise = video.play();
+      if(playPromise && playPromise.catch) playPromise.catch(()=>{});
+      camMsg.style.display = 'none';
+      populateDeviceList();
+    }catch(err){
+      camMsg.style.display = 'flex';
+      camMsg.innerHTML = 'Camera access failed: ' + (err.message || err.name) +
+        '<br><button class="btn-reset" id="retryBtn" style="margin-top:10px;">Try again</button>';
+      document.getElementById('retryBtn').onclick = startCamera;
+    }
+  }
+
+  async function populateDeviceList(){
+    try{
+      devices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+      if(devices.length > 1){
+        camSelect.style.display = 'block';
+        camSelect.innerHTML = devices.map((d,i) =>
+          `<option value="${d.deviceId}">${d.label || ('Camera ' + (i+1))}</option>`).join('');
+        if(currentDeviceId) camSelect.value = currentDeviceId;
+      }
+    }catch(e){ /* labels unavailable until permission granted; ignore */ }
+  }
+  camSelect.addEventListener('change', () => {
+    currentDeviceId = camSelect.value;
+    startCamera();
+  });
+
+  video.addEventListener('loadedmetadata', () => {
+    const vw = video.videoWidth, vh = video.videoHeight;
+    camWrap.style.aspectRatio = (vw && vh) ? (vw + '/' + vh) : '4/3';
+    sample.width = 160;
+    sample.height = Math.max(40, Math.round(160 * (vh / vw || 0.75)));
+    resizeOverlay();
+    prevSample = null;
+  });
+
+  function resizeOverlay(){
+    const rect = camWrap.getBoundingClientRect();
+    overlay.width = Math.round(rect.width);
+    overlay.height = Math.round(rect.height);
+  }
+  window.addEventListener('resize', resizeOverlay);
+
+  function posFromEvent(e){
+    const rect = overlay.getBoundingClientRect();
+    return { x: (e.clientX-rect.left)/rect.width, y: (e.clientY-rect.top)/rect.height };
+  }
+  overlay.addEventListener('pointerdown', (e) => {
+    const p = posFromEvent(e);
+    const near = orientation === 'horizontal' ? Math.abs(p.y-gatePos)<thickness : Math.abs(p.x-gatePos)<thickness;
+    if(near){ dragging = true; overlay.setPointerCapture(e.pointerId); }
+  });
+  overlay.addEventListener('pointermove', (e) => {
+    if(!dragging) return;
+    const p = posFromEvent(e);
+    gatePos = orientation === 'horizontal' ? p.y : p.x;
+    gatePos = Math.min(0.92, Math.max(0.08, gatePos));
+  });
+  overlay.addEventListener('pointerup', () => { dragging = false; });
+  overlay.addEventListener('pointercancel', () => { dragging = false; });
+
+  orientBtn.addEventListener('click', () => {
+    orientation = orientation === 'horizontal' ? 'vertical' : 'horizontal';
+    orientBtn.textContent = orientation === 'horizontal' ? '↕ Horizontal' : '↔ Vertical';
+    prevSample = null;
+  });
+  flipBtn.addEventListener('click', () => {
+    facingMode = facingMode === 'environment' ? 'user' : 'environment';
+    currentDeviceId = null;
+    startCamera();
+  });
+  startCamBtn.addEventListener('click', startCamera);
+
+  function drawOverlay(){
+    const w = overlay.width, h = overlay.height;
+    octx.clearRect(0,0,w,h);
+    const now = performance.now();
+    const flash = Math.max(0, 1 - (now - lastTriggerAt) / 320);
+    const color = flash > 0 ? `rgba(79,174,113,${0.15+flash*0.35})` : 'rgba(232,163,61,0.14)';
+    const lineColor = flash > 0 ? '#4FAE71' : '#E8A33D';
+    octx.fillStyle = color; octx.strokeStyle = lineColor; octx.lineWidth = 2;
+    if(orientation === 'horizontal'){
+      const y = gatePos*h, band = thickness*h;
+      octx.fillRect(0, y-band/2, w, band);
+      octx.beginPath(); octx.moveTo(0,y); octx.lineTo(w,y); octx.stroke();
+    } else {
+      const x = gatePos*w, band = thickness*w;
+      octx.fillRect(x-band/2, 0, band, h);
+      octx.beginPath(); octx.moveTo(x,0); octx.lineTo(x,h); octx.stroke();
+    }
+    requestAnimationFrame(drawOverlay);
+  }
+  requestAnimationFrame(drawOverlay);
+
+  function processFrame(now){
+    requestAnimationFrame(processFrame);
+    if(!video.videoWidth) return;
+    if(now - lastProcessAt < 40) return;
+    lastProcessAt = now;
+    sctx.drawImage(video, 0, 0, sample.width, sample.height);
+    const w = sample.width, h = sample.height;
+    let rx, ry, rw, rh;
+    if(orientation === 'horizontal'){
+      ry = Math.round((gatePos - thickness/2) * h); rh = Math.max(2, Math.round(thickness*h));
+      rx = 0; rw = w;
+    } else {
+      rx = Math.round((gatePos - thickness/2) * w); rw = Math.max(2, Math.round(thickness*w));
+      ry = 0; rh = h;
+    }
+    ry = Math.max(0, Math.min(h-1, ry)); rx = Math.max(0, Math.min(w-1, rx));
+    rh = Math.max(1, Math.min(h-ry, rh)); rw = Math.max(1, Math.min(w-rx, rw));
+    let data;
+    try{ data = sctx.getImageData(rx, ry, rw, rh).data; } catch(e){ return; }
+    let sum = 0; const count = data.length/4;
+    for(let i=0;i<data.length;i+=4){ sum += 0.299*data[i]+0.587*data[i+1]+0.114*data[i+2]; }
+    const avg = sum/count;
+    if(prevSample !== null){
+      const diff = Math.abs(avg - prevSample);
+      const threshold = sensitivityToThreshold(Number(sensSlider.value));
+      const pct = Math.min(100, (diff/(threshold*2.2))*100);
+      meterFill.style.width = pct + '%';
+      meterFill.style.background = diff > threshold ? '#4FAE71' : (pct > 55 ? '#E8A33D' : '#5A5D68');
+      const minGapMs = Number(gapSlider.value) * 100;
+      if(armed && diff > threshold && !triggered && (now - lastLapTime) > minGapMs){
+        triggered = true; lastTriggerAt = now; registerLap(now);
+      } else if(diff < threshold*0.5){ triggered = false; }
+    }
+    prevSample = avg;
+  }
+  requestAnimationFrame(processFrame);
+
+  function ensureAudio(){
+    if(!audioCtx){
+      try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }catch(e){ return; }
+    }
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+  }
+  function beep(){
+    try{
+      ensureAudio();
+      if(!audioCtx) return;
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.frequency.value = 880; o.type = 'sine';
+      g.gain.setValueAtTime(0.001, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.3, audioCtx.currentTime+0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+0.18);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(); o.stop(audioCtx.currentTime+0.2);
+    }catch(e){}
+    if(navigator.vibrate) navigator.vibrate(60);
+  }
+
+  function registerLap(now){
+    const d = ensureDriver(currentDriver);
+    const from = d.laps.length ? lastLapTime : startTime;
+    const duration = now - from;
+    lastLapTime = now;
+    const n = d.laps.length + 1;
+    const isBest = duration < d.bestDuration;
+    if(isBest) d.bestDuration = duration;
+    d.laps.unshift({ n, duration, best: isBest });
+    beep();
+    renderLaps();
+    renderDriverPills();
+    renderLeaderboard();
+  }
+
+  function renderLaps(){
+    const d = ensureDriver(currentDriver);
+    lapCountEl.textContent = d.laps.length;
+    if(d.laps.length === 0){
+      lastLapEl.textContent = '—'; bestLapEl.textContent = '—';
+      lapsPanel.innerHTML = '<div class="empty">Laps will appear here once you start.</div>';
+      return;
+    }
+    lastLapEl.textContent = fmt(d.laps[0].duration);
+    bestLapEl.textContent = fmt(d.bestDuration);
+    lapsPanel.innerHTML = d.laps.map(l => {
+      const delta = l.duration - d.bestDuration;
+      const deltaText = l.best ? 'best' : ('+' + (delta/1000).toFixed(2) + 's');
+      const deltaClass = l.best ? 'best' : 'off';
+      return `<div class="lap-row ${l.best?'pb':''}">
+        <span class="n">#${l.n}</span>
+        <span class="t">${fmt(l.duration)}</span>
+        <span class="d ${deltaClass}">${deltaText}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function renderDriverPills(){
+    const names = Object.keys(drivers);
+    driverPills.innerHTML = names.map(name => {
+      const d = drivers[name];
+      const pb = isFinite(d.bestDuration) ? fmt(d.bestDuration) : '—';
+      return `<button class="pill ${name===currentDriver?'active':''}" data-name="${name}">
+        ${name} <span class="pb">${pb}</span>
+      </button>`;
+    }).join('');
+    driverPills.querySelectorAll('.pill').forEach(btn => {
+      btn.addEventListener('click', () => selectDriver(btn.dataset.name));
+    });
+  }
+
+  function renderLeaderboard(){
+    const names = Object.keys(drivers);
+    lbSummary.textContent = names.length + (names.length===1 ? ' driver' : ' drivers');
+    const ranked = names
+      .map(name => ({ name, ...drivers[name] }))
+      .sort((a,b) => a.bestDuration - b.bestDuration);
+    const fastest = ranked.length ? ranked[0].bestDuration : Infinity;
+    lbList.innerHTML = ranked.map((r, i) => {
+      const hasTime = isFinite(r.bestDuration);
+      const gap = hasTime && i>0 ? '+' + ((r.bestDuration-fastest)/1000).toFixed(2)+'s' : (i===0 && hasTime ? 'fastest' : '—');
+      return `<div class="lb-row ${i===0 && hasTime ? 'leader':''}">
+        <span class="rank">${i+1}</span>
+        <span class="name">${r.name}</span>
+        <span class="best">${hasTime ? fmt(r.bestDuration) : '—'}</span>
+        <span class="gap">${gap}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function selectDriver(name){
+    name = (name || '').trim();
+    if(!name) return;
+    ensureDriver(name);
+    currentDriver = name;
+    driverInput.value = name;
+    armed = false;
+    mainBtn.textContent = 'Start';
+    mainBtn.classList.remove('stop');
+    armedDot.classList.remove('armed');
+    statusText.textContent = 'idle';
+    triggered = false;
+    renderLaps();
+    renderDriverPills();
+    renderLeaderboard();
+  }
+
+  driverGoBtn.addEventListener('click', () => selectDriver(driverInput.value));
+  driverInput.addEventListener('keydown', (e) => { if(e.key === 'Enter'){ selectDriver(driverInput.value); driverInput.blur(); } });
+
+  mainBtn.addEventListener('click', () => {
+    if(!armed){
+      selectDriver(driverInput.value || currentDriver);
+      ensureAudio();
+      armed = true;
+      startTime = performance.now();
+      lastLapTime = 0;
+      triggered = false;
+      mainBtn.textContent = 'Stop';
+      mainBtn.classList.add('stop');
+      armedDot.classList.add('armed');
+      statusText.textContent = currentDriver + ' — waiting for first crossing';
+    } else {
+      armed = false;
+      mainBtn.textContent = 'Start';
+      mainBtn.classList.remove('stop');
+      armedDot.classList.remove('armed');
+      statusText.textContent = 'stopped';
+    }
+  });
+
+  resetBtn.addEventListener('click', () => {
+    armed = false;
+    drivers[currentDriver] = { laps: [], bestDuration: Infinity };
+    mainBtn.textContent = 'Start';
+    mainBtn.classList.remove('stop');
+    armedDot.classList.remove('armed');
+    statusText.textContent = 'idle';
+    renderLaps();
+    renderDriverPills();
+    renderLeaderboard();
+  });
+
+  sensSlider.addEventListener('input', () => { sensVal.textContent = sensSlider.value; updateCalibSummary(); });
+  gapSlider.addEventListener('input', () => { gapVal.textContent = (Number(gapSlider.value)/10).toFixed(1)+'s'; updateCalibSummary(); });
+  function updateCalibSummary(){
+    calibSummary.textContent = `sensitivity ${sensSlider.value} · min gap ${(Number(gapSlider.value)/10).toFixed(1)}s`;
+  }
+
+  renderDriverPills();
+  renderLeaderboard();
+  startCamera();
+})();
+</script>
+</body>
+</html>
