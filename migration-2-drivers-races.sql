@@ -1,3 +1,7 @@
+-- Superseded by migration-3-shared-races.sql — skip straight to that one,
+-- it handles this step too regardless of whether you've run this file.
+-- Kept here only as a record of the intermediate schema.
+--
 -- Upgrades an existing Lap Gate project (which only had a "laps" table,
 -- with laps identified by browser session instead of by driver) to the
 -- new drivers/races model. Run once in your Supabase project's SQL editor.

@@ -23,21 +23,11 @@
     </div>
   </header>
 
-  <!-- SCREEN 1: choose a driver -->
-  <section class="screen" id="screenDrivers">
-    <div class="section-title"><span>Choose driver</span></div>
-    <div class="list" id="driversList"><div class="empty">Loading drivers…</div></div>
-    <div class="field-row">
-      <input id="newDriverInput" placeholder="New driver name" maxlength="24">
-      <button id="addDriverBtn">Add</button>
-    </div>
-  </section>
-
-  <!-- SCREEN 2: choose or start a race for that driver -->
-  <section class="screen" id="screenRaces" hidden>
+  <!-- SCREEN 1: races (home) -->
+  <section class="screen" id="screenRaces">
     <div class="section-title">
-      <button class="back-btn" id="backToDriversBtn">‹</button>
-      <span id="racesDriverName">Driver</span>
+      <span class="grow">Races</span>
+      <button class="icon-btn" id="manageDriversBtn" title="Manage drivers">👤</button>
     </div>
     <div class="list" id="racesList"><div class="empty">Loading races…</div></div>
     <div class="new-race">
@@ -52,7 +42,20 @@
     </div>
   </section>
 
-  <!-- SCREEN 3: camera + lap recording -->
+  <!-- SCREEN 2: manage drivers -->
+  <section class="screen" id="screenDrivers" hidden>
+    <div class="section-title">
+      <button class="back-btn" id="backToRacesFromDriversBtn">‹</button>
+      <span class="grow">Drivers</span>
+    </div>
+    <div class="list" id="driversList"><div class="empty">Loading drivers…</div></div>
+    <div class="field-row">
+      <input id="newDriverInput" placeholder="New driver name" maxlength="24">
+      <button id="addDriverBtn">Add</button>
+    </div>
+  </section>
+
+  <!-- SCREEN 3: camera + lap recording, drivers competing head-to-head -->
   <section class="screen" id="screenRecord" hidden>
     <div class="section-title">
       <button class="back-btn" id="backToRacesBtn">‹</button>
@@ -62,6 +65,8 @@
       </div>
       <button class="icon-btn danger" id="deleteRaceBtn" title="Delete this race">🗑</button>
     </div>
+
+    <div class="pills" id="driverPills"></div>
 
     <div class="camera-card">
       <div class="camera-wrap" id="camWrap">
@@ -100,6 +105,11 @@
     <div class="laps-panel" id="lapsPanel">
       <div class="empty">Laps will appear here once you start.</div>
     </div>
+
+    <details class="calib" open>
+      <summary>This race<span id="lbSummary" style="font-weight:400;">—</span></summary>
+      <div id="lbList" class="lb-list"></div>
+    </details>
 
     <details class="calib">
       <summary>All-time on this track<span id="atSummary" style="font-weight:400;">—</span></summary>

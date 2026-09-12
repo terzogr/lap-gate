@@ -25,26 +25,27 @@ const supabase = supabaseEnabled
 const syncDot = document.getElementById("syncDot");
 const statusText = document.getElementById("statusText");
 
-const screenDrivers = document.getElementById("screenDrivers");
 const screenRaces = document.getElementById("screenRaces");
+const screenDrivers = document.getElementById("screenDrivers");
 const screenRecord = document.getElementById("screenRecord");
 
-const driversList = document.getElementById("driversList");
-const newDriverInput = document.getElementById("newDriverInput");
-const addDriverBtn = document.getElementById("addDriverBtn");
-
-const backToDriversBtn = document.getElementById("backToDriversBtn");
-const racesDriverName = document.getElementById("racesDriverName");
+const manageDriversBtn = document.getElementById("manageDriversBtn");
 const racesList = document.getElementById("racesList");
 const newRaceTrackInput = document.getElementById("newRaceTrackInput");
 const newRaceNameInput = document.getElementById("newRaceNameInput");
 const startRaceBtn = document.getElementById("startRaceBtn");
 const trackHistory = document.getElementById("trackHistory");
 
+const backToRacesFromDriversBtn = document.getElementById("backToRacesFromDriversBtn");
+const driversList = document.getElementById("driversList");
+const newDriverInput = document.getElementById("newDriverInput");
+const addDriverBtn = document.getElementById("addDriverBtn");
+
 const backToRacesBtn = document.getElementById("backToRacesBtn");
 const deleteRaceBtn = document.getElementById("deleteRaceBtn");
 const recordRaceName = document.getElementById("recordRaceName");
 const recordTrackName = document.getElementById("recordTrackName");
+const driverPills = document.getElementById("driverPills");
 
 const video = document.getElementById("video");
 const overlay = document.getElementById("overlay");
@@ -66,6 +67,8 @@ const gapSlider = document.getElementById("gapSlider");
 const sensVal = document.getElementById("sensVal");
 const gapVal = document.getElementById("gapVal");
 const calibSummary = document.getElementById("calibSummary");
+const lbSummary = document.getElementById("lbSummary");
+const lbList = document.getElementById("lbList");
 const atSummary = document.getElementById("atSummary");
 const atList = document.getElementById("atList");
 
@@ -82,15 +85,14 @@ function fmt(ms) {
 // ---------------------------------------------------------------
 // Navigation state
 // ---------------------------------------------------------------
-let currentDriver = null; // { id, name }
-let currentRace = null; // { id, name, track, driver_id }
-let driversCache = [];
+let currentRace = null; // { id, name, track }
+let currentDriverId = null; // whoever is "at the wheel" right now
+let driversCache = []; // [{ id, name }] — global, shared across all races
 let racesCache = [];
-let knownTracks = [];
 
 function showScreen(name) {
-  screenDrivers.hidden = name !== "drivers";
   screenRaces.hidden = name !== "races";
+  screenDrivers.hidden = name !== "drivers";
   screenRecord.hidden = name !== "record";
 }
 
@@ -99,26 +101,45 @@ function setSyncDot(state) {
   if (state) syncDot.classList.add(state);
 }
 
+async function createDriver(name) {
+  const { data, error } = await supabase.from("drivers").insert({ name }).select().single();
+  if (error) {
+    alert(error.code === "23505" ? `"${name}" already exists — pick them from the list.` : "Could not add driver: " + error.message);
+    return null;
+  }
+  driversCache.push(data);
+  driversCache.sort((a, b) => a.name.localeCompare(b.name));
+  return data;
+}
+
+async function deleteDriverEverywhere(driver) {
+  if (!confirm(`Delete ${driver.name} and all of their laps in every race? This can't be undone.`)) return;
+  const { error } = await supabase.from("drivers").delete().eq("id", driver.id);
+  if (error) {
+    alert("Could not delete driver: " + error.message);
+    return;
+  }
+  driversCache = driversCache.filter((d) => d.id !== driver.id);
+  if (currentDriverId === driver.id) currentDriverId = driversCache[0]?.id || null;
+  renderDriversManager();
+}
+
 // ---------------------------------------------------------------
-// SCREEN 1: drivers
+// SCREEN: drivers manager
 // ---------------------------------------------------------------
 async function loadDrivers() {
   if (!supabase) {
-    driversList.innerHTML = '<div class="empty">Supabase isn\'t configured — add your project URL and anon key in app.js.</div>';
+    driversCache = [];
+    renderDriversManager();
     return;
   }
   const { data, error } = await supabase.from("drivers").select("id, name").order("name");
-  if (error) {
-    driversList.innerHTML = `<div class="empty">Couldn't load drivers: ${esc(error.message)}</div>`;
-    setSyncDot("offline");
-    return;
-  }
-  driversCache = data || [];
-  renderDrivers();
-  setSyncDot("synced");
+  if (!error) driversCache = data || [];
+  renderDriversManager();
+  renderPills();
 }
 
-function renderDrivers() {
+function renderDriversManager() {
   if (!driversCache.length) {
     driversList.innerHTML = '<div class="empty">No drivers yet — add one below.</div>';
     return;
@@ -126,93 +147,67 @@ function renderDrivers() {
   driversList.innerHTML = driversCache
     .map(
       (d) => `<div class="list-row">
-        <button class="row-main" data-id="${d.id}">
-          <span class="row-name">${esc(d.name)}</span>
-        </button>
+        <div class="row-main"><span class="row-name">${esc(d.name)}</span></div>
         <button class="row-del" data-id="${d.id}" title="Delete driver">🗑</button>
       </div>`
     )
     .join("");
-  driversList.querySelectorAll(".row-main").forEach((btn) => {
+  driversList.querySelectorAll(".row-del").forEach((btn) => {
     btn.addEventListener("click", () => {
       const driver = driversCache.find((d) => d.id === btn.dataset.id);
-      if (driver) selectDriver(driver);
-    });
-  });
-  driversList.querySelectorAll(".row-del").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const driver = driversCache.find((d) => d.id === btn.dataset.id);
-      if (driver) deleteDriver(driver);
+      if (driver) deleteDriverEverywhere(driver);
     });
   });
 }
 
-async function addDriver() {
+addDriverBtn.addEventListener("click", async () => {
   const name = newDriverInput.value.trim();
   if (!name || !supabase) return;
-  const { data, error } = await supabase.from("drivers").insert({ name }).select().single();
-  if (error) {
-    alert(error.code === "23505" ? `"${name}" already exists — pick them from the list.` : "Could not add driver: " + error.message);
-    return;
+  const d = await createDriver(name);
+  if (d) {
+    newDriverInput.value = "";
+    renderDriversManager();
   }
-  newDriverInput.value = "";
-  driversCache.push(data);
-  driversCache.sort((a, b) => a.name.localeCompare(b.name));
-  renderDrivers();
-  selectDriver(data);
-}
-addDriverBtn.addEventListener("click", addDriver);
+});
 newDriverInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") addDriver();
+  if (e.key === "Enter") addDriverBtn.click();
 });
 
-async function deleteDriver(driver) {
-  if (!confirm(`Delete ${driver.name} and all of their races and laps? This can't be undone.`)) return;
-  const { error } = await supabase.from("drivers").delete().eq("id", driver.id);
-  if (error) {
-    alert("Could not delete driver: " + error.message);
-    return;
-  }
-  driversCache = driversCache.filter((d) => d.id !== driver.id);
-  renderDrivers();
-}
-
-function selectDriver(driver) {
-  currentDriver = driver;
-  racesDriverName.textContent = driver.name;
-  showScreen("races");
-  loadRaces();
-}
-backToDriversBtn.addEventListener("click", () => {
+manageDriversBtn.addEventListener("click", () => {
   showScreen("drivers");
+  loadDrivers();
+});
+backToRacesFromDriversBtn.addEventListener("click", () => {
+  showScreen("races");
 });
 
 // ---------------------------------------------------------------
-// SCREEN 2: races for the selected driver
+// SCREEN: races (home)
 // ---------------------------------------------------------------
 async function loadRaces() {
   racesList.innerHTML = '<div class="empty">Loading races…</div>';
-  const { data: races, error } = await supabase
-    .from("races")
-    .select("id, name, track, created_at")
-    .eq("driver_id", currentDriver.id)
-    .order("created_at", { ascending: false });
+  const { data: races, error } = await supabase.from("races").select("id, name, track, created_at").order("created_at", { ascending: false });
   if (error) {
     racesList.innerHTML = `<div class="empty">Couldn't load races: ${esc(error.message)}</div>`;
+    setSyncDot("offline");
     return;
   }
+  setSyncDot("synced");
   let statsByRace = {};
   if (races.length) {
     const ids = races.map((r) => r.id);
-    const { data: lapsData } = await supabase.from("laps").select("race_id, duration_ms").in("race_id", ids);
+    const { data: lapsData } = await supabase.from("laps").select("race_id, driver_id, duration_ms").in("race_id", ids);
     for (const l of lapsData || []) {
-      const s = statsByRace[l.race_id] || (statsByRace[l.race_id] = { count: 0, best: Infinity });
+      const s = statsByRace[l.race_id] || (statsByRace[l.race_id] = { count: 0, best: Infinity, drivers: new Set() });
       s.count++;
+      s.drivers.add(l.driver_id);
       if (l.duration_ms < s.best) s.best = l.duration_ms;
     }
   }
-  racesCache = races.map((r) => ({ ...r, ...(statsByRace[r.id] || { count: 0, best: Infinity }) }));
+  racesCache = races.map((r) => {
+    const s = statsByRace[r.id];
+    return { ...r, count: s ? s.count : 0, best: s ? s.best : Infinity, driverCount: s ? s.drivers.size : 0 };
+  });
   renderRaces();
   refreshTrackHistory();
 }
@@ -225,10 +220,11 @@ function renderRaces() {
   racesList.innerHTML = racesCache
     .map((r) => {
       const bestText = isFinite(r.best) ? ` · best ${fmt(r.best)}` : "";
+      const driverText = r.driverCount ? `${r.driverCount} driver${r.driverCount === 1 ? "" : "s"} · ` : "";
       return `<div class="list-row">
         <button class="row-main" data-id="${r.id}">
           <span class="row-name">${esc(r.name)}</span>
-          <span class="row-sub">${esc(r.track)} · ${r.count} lap${r.count === 1 ? "" : "s"}${bestText}</span>
+          <span class="row-sub">${esc(r.track)} · ${driverText}${r.count} lap${r.count === 1 ? "" : "s"}${bestText}</span>
         </button>
         <button class="row-del" data-id="${r.id}" title="Delete race">🗑</button>
       </div>`;
@@ -272,13 +268,13 @@ startRaceBtn.addEventListener("click", async () => {
     return;
   }
   const name = newRaceNameInput.value.trim() || defaultRaceName();
-  const { data, error } = await supabase.from("races").insert({ driver_id: currentDriver.id, track, name }).select().single();
+  const { data, error } = await supabase.from("races").insert({ track, name }).select().single();
   if (error) {
     alert("Could not start race: " + error.message);
     return;
   }
   newRaceNameInput.value = "";
-  openRace({ ...data, count: 0, best: Infinity });
+  openRace(data);
 });
 
 async function refreshTrackHistory() {
@@ -287,25 +283,19 @@ async function refreshTrackHistory() {
   if (error) return;
   const seen = [];
   for (const row of data) if (!seen.includes(row.track)) seen.push(row.track);
-  knownTracks = seen;
   trackHistory.innerHTML = seen.map((t) => `<option value="${esc(t)}"></option>`).join("");
   if (!newRaceTrackInput.value && seen.length) newRaceTrackInput.value = seen[0];
 }
 
 // ---------------------------------------------------------------
-// SCREEN 3: camera + lap recording for the open race
+// SCREEN: camera + lap recording — multiple drivers share one race
 // ---------------------------------------------------------------
-let laps = []; // newest-first: { id, n, duration, best }
-let bestDuration = Infinity;
-let nextLapNumber = 1;
+let raceLaps = []; // every lap in the open race, any driver: { id, driver_id, lap_number, duration_ms }
 
 async function openRace(race) {
   currentRace = race;
   recordRaceName.textContent = race.name;
   recordTrackName.textContent = race.track;
-  laps = [];
-  bestDuration = Infinity;
-  nextLapNumber = 1;
   armed = false;
   triggered = false;
   mainBtn.textContent = "Start";
@@ -313,19 +303,25 @@ async function openRace(race) {
   statusText.textContent = "idle";
   showScreen("record");
   await loadLapsForRace();
+  if (!currentDriverId && driversCache.length) currentDriverId = driversCache[0].id;
+  renderAll();
   refreshAllTimeLeaderboard();
   startCamera();
 }
 
 async function loadLapsForRace() {
-  const { data, error } = await supabase.from("laps").select("id, lap_number, duration_ms").eq("race_id", currentRace.id).order("lap_number");
-  if (!error && data) {
-    laps = data.map((r) => ({ id: r.id, n: r.lap_number, duration: r.duration_ms, best: false })).reverse();
-    bestDuration = data.length ? Math.min(...data.map((r) => r.duration_ms)) : Infinity;
-    laps.forEach((l) => (l.best = l.duration === bestDuration));
-    nextLapNumber = data.length ? Math.max(...data.map((r) => r.lap_number)) + 1 : 1;
-  }
+  const { data, error } = await supabase.from("laps").select("id, driver_id, lap_number, duration_ms").eq("race_id", currentRace.id).order("lap_number");
+  raceLaps = error ? [] : data || [];
+}
+
+function lapsFor(driverId) {
+  return raceLaps.filter((l) => l.driver_id === driverId);
+}
+
+function renderAll() {
+  renderPills();
   renderLaps();
+  renderLeaderboard();
 }
 
 backToRacesBtn.addEventListener("click", () => {
@@ -345,6 +341,51 @@ deleteRaceBtn.addEventListener("click", async () => {
   showScreen("races");
   loadRaces();
 });
+
+// ---------------------------------------------------------------
+// Driver switcher (who's currently at the wheel)
+// ---------------------------------------------------------------
+function renderPills() {
+  if (!driversCache.length) {
+    driverPills.innerHTML = '<button class="pill add" id="quickAddDriverBtn">+ Add driver</button>';
+    document.getElementById("quickAddDriverBtn").addEventListener("click", quickAddDriver);
+    mainBtn.disabled = true;
+    return;
+  }
+  mainBtn.disabled = false;
+  driverPills.innerHTML =
+    driversCache
+      .map((d) => {
+        const mine = lapsFor(d.id);
+        const best = mine.length ? fmt(Math.min(...mine.map((l) => l.duration_ms))) : "—";
+        return `<button class="pill ${d.id === currentDriverId ? "active" : ""}" data-id="${d.id}">${esc(d.name)} <span class="pb">${best}</span></button>`;
+      })
+      .join("") + '<button class="pill add" id="quickAddDriverBtn">+</button>';
+  driverPills.querySelectorAll(".pill[data-id]").forEach((btn) => {
+    btn.addEventListener("click", () => selectDriverForRace(btn.dataset.id));
+  });
+  document.getElementById("quickAddDriverBtn").addEventListener("click", quickAddDriver);
+}
+
+function selectDriverForRace(id) {
+  currentDriverId = id;
+  armed = false;
+  triggered = false;
+  mainBtn.textContent = "Start";
+  mainBtn.classList.remove("stop");
+  statusText.textContent = "idle";
+  renderAll();
+}
+
+async function quickAddDriver() {
+  const name = (prompt("New driver name:") || "").trim();
+  if (!name) return;
+  const d = await createDriver(name);
+  if (d) {
+    currentDriverId = d.id;
+    renderAll();
+  }
+}
 
 // ---------------------------------------------------------------
 // Camera (Samsung Internet friendly)
@@ -556,67 +597,65 @@ function beep() {
 // Lap logic (local, instant — never blocked by the network)
 // ---------------------------------------------------------------
 function registerLap(now) {
+  if (!currentDriverId) return;
+  const mine = lapsFor(currentDriverId);
   const from = lastLapTime || startTime;
-  const duration = now - from;
+  const duration_ms = Math.round(now - from);
   lastLapTime = now;
-  const n = nextLapNumber++;
-  const isBest = duration < bestDuration;
-  if (isBest) bestDuration = duration;
-  const lap = { id: null, n, duration, best: isBest };
-  laps.unshift(lap);
+  const lap_number = mine.length ? Math.max(...mine.map((l) => l.lap_number)) + 1 : 1;
+  const lap = { id: null, driver_id: currentDriverId, lap_number, duration_ms };
+  raceLaps.push(lap);
   beep();
-  renderLaps();
+  renderAll();
   syncLap(lap);
 }
 
 function renderLaps() {
-  lapCountEl.textContent = laps.length;
-  if (laps.length === 0) {
+  const mine = lapsFor(currentDriverId).slice().sort((a, b) => b.lap_number - a.lap_number);
+  lapCountEl.textContent = mine.length;
+  if (!mine.length) {
     lastLapEl.textContent = "—"; bestLapEl.textContent = "—";
     lapsPanel.innerHTML = '<div class="empty">Laps will appear here once you start.</div>';
     return;
   }
-  lastLapEl.textContent = fmt(laps[0].duration);
-  bestLapEl.textContent = fmt(bestDuration);
-  lapsPanel.innerHTML = laps
-    .map((l, i) => {
-      const delta = l.duration - bestDuration;
-      const deltaText = l.best ? "best" : "+" + (delta / 1000).toFixed(2) + "s";
-      const deltaClass = l.best ? "best" : "off";
-      return `<div class="lap-row ${l.best ? "pb" : ""}" data-idx="${i}">
-        <span class="n">#${l.n}</span>
-        <span class="t">${fmt(l.duration)}</span>
-        <span class="d ${deltaClass}">${deltaText}</span>
-        <button class="del" data-idx="${i}" title="Delete lap">✕</button>
+  const best = Math.min(...mine.map((l) => l.duration_ms));
+  lastLapEl.textContent = fmt(mine[0].duration_ms);
+  bestLapEl.textContent = fmt(best);
+  lapsPanel.innerHTML = mine
+    .map((l) => {
+      const isBest = l.duration_ms === best;
+      const deltaText = isBest ? "best" : "+" + ((l.duration_ms - best) / 1000).toFixed(2) + "s";
+      return `<div class="lap-row ${isBest ? "pb" : ""}">
+        <span class="n">#${l.lap_number}</span>
+        <span class="t">${fmt(l.duration_ms)}</span>
+        <span class="d ${isBest ? "best" : "off"}">${deltaText}</span>
+        <button class="del" data-id="${l.id ?? ""}" title="Delete lap">✕</button>
       </div>`;
     })
     .join("");
   lapsPanel.querySelectorAll(".del").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      deleteLap(laps[Number(btn.dataset.idx)]);
+      const id = btn.dataset.id;
+      if (!id) { alert("Still syncing this lap — try again in a moment."); return; }
+      deleteLap(id);
     });
   });
 }
 
-async function deleteLap(lap) {
-  if (!lap.id) {
-    alert("Still syncing this lap — try again in a moment.");
-    return;
-  }
-  if (!confirm(`Delete lap #${lap.n}?`)) return;
-  const { error } = await supabase.from("laps").delete().eq("id", lap.id);
+async function deleteLap(id) {
+  if (!confirm("Delete this lap?")) return;
+  const { error } = await supabase.from("laps").delete().eq("id", id);
   if (error) {
     alert("Could not delete lap: " + error.message);
     return;
   }
-  laps = laps.filter((l) => l !== lap);
-  bestDuration = laps.length ? Math.min(...laps.map((l) => l.duration)) : Infinity;
-  laps.forEach((l) => (l.best = l.duration === bestDuration));
-  renderLaps();
+  raceLaps = raceLaps.filter((l) => String(l.id) !== String(id));
+  renderAll();
 }
 
 mainBtn.addEventListener("click", () => {
+  if (!currentDriverId) return;
   if (!armed) {
     ensureAudio();
     armed = true;
@@ -649,7 +688,7 @@ async function syncLap(lap) {
   try {
     const { data, error } = await supabase
       .from("laps")
-      .insert({ race_id: currentRace.id, lap_number: lap.n, duration_ms: Math.round(lap.duration) })
+      .insert({ race_id: currentRace.id, driver_id: lap.driver_id, lap_number: lap.lap_number, duration_ms: lap.duration_ms })
       .select()
       .single();
     if (error) throw error;
@@ -662,6 +701,34 @@ async function syncLap(lap) {
   }
 }
 
+function renderLeaderboard() {
+  const ids = new Set(raceLaps.map((l) => l.driver_id));
+  if (currentDriverId) ids.add(currentDriverId);
+  const rows = [...ids].map((id) => {
+    const mine = lapsFor(id);
+    const best = mine.length ? Math.min(...mine.map((l) => l.duration_ms)) : Infinity;
+    return { name: driversCache.find((d) => d.id === id)?.name || "Unknown", best };
+  }).sort((a, b) => a.best - b.best);
+  lbSummary.textContent = rows.length + (rows.length === 1 ? " driver" : " drivers");
+  if (!rows.length) {
+    lbList.innerHTML = '<div class="lb-empty">No laps yet.</div>';
+    return;
+  }
+  const fastest = rows[0].best;
+  lbList.innerHTML = rows
+    .map((r, i) => {
+      const hasTime = isFinite(r.best);
+      const gap = hasTime && i > 0 ? "+" + ((r.best - fastest) / 1000).toFixed(2) + "s" : i === 0 && hasTime ? "fastest" : "—";
+      return `<div class="lb-row ${i === 0 && hasTime ? "leader" : ""}">
+        <span class="rank">${i + 1}</span>
+        <span class="name">${esc(r.name)}</span>
+        <span class="best">${hasTime ? fmt(r.best) : "—"}</span>
+        <span class="gap">${gap}</span>
+      </div>`;
+    })
+    .join("");
+}
+
 async function refreshAllTimeLeaderboard() {
   if (!supabase) {
     atSummary.textContent = "not connected";
@@ -669,7 +736,7 @@ async function refreshAllTimeLeaderboard() {
     return;
   }
   try {
-    const { data: races, error } = await supabase.from("races").select("id, drivers(name)").eq("track", currentRace.track);
+    const { data: races, error } = await supabase.from("races").select("id").eq("track", currentRace.track);
     if (error) throw error;
     if (!races.length) {
       atSummary.textContent = "no laps yet";
@@ -677,28 +744,28 @@ async function refreshAllTimeLeaderboard() {
       return;
     }
     const raceIds = races.map((r) => r.id);
-    const nameByRace = Object.fromEntries(races.map((r) => [r.id, r.drivers?.name || "Unknown"]));
-    const { data: lapsData, error: lapsErr } = await supabase.from("laps").select("race_id, duration_ms").in("race_id", raceIds);
+    const { data: lapsData, error: lapsErr } = await supabase.from("laps").select("driver_id, duration_ms").in("race_id", raceIds);
     if (lapsErr) throw lapsErr;
     const bestByDriver = {};
     for (const row of lapsData) {
-      const name = nameByRace[row.race_id];
-      if (!(name in bestByDriver) || row.duration_ms < bestByDriver[name]) bestByDriver[name] = row.duration_ms;
+      if (!(row.driver_id in bestByDriver) || row.duration_ms < bestByDriver[row.driver_id]) bestByDriver[row.driver_id] = row.duration_ms;
     }
-    const ranked = Object.entries(bestByDriver).sort((a, b) => a[1] - b[1]);
+    const ranked = Object.entries(bestByDriver)
+      .map(([driverId, dur]) => ({ name: driversCache.find((d) => d.id === driverId)?.name || "Unknown", dur }))
+      .sort((a, b) => a.dur - b.dur);
     atSummary.textContent = ranked.length ? ranked.length + " drivers" : "no laps yet";
     if (!ranked.length) {
       atList.innerHTML = '<div class="lb-empty">No recorded laps for this track yet.</div>';
       return;
     }
-    const fastest = ranked[0][1];
+    const fastest = ranked[0].dur;
     atList.innerHTML = ranked
-      .map(([name, dur], i) => {
-        const gap = i === 0 ? "fastest" : "+" + ((dur - fastest) / 1000).toFixed(2) + "s";
+      .map((r, i) => {
+        const gap = i === 0 ? "fastest" : "+" + ((r.dur - fastest) / 1000).toFixed(2) + "s";
         return `<div class="lb-row ${i === 0 ? "leader" : ""}">
           <span class="rank">${i + 1}</span>
-          <span class="name">${esc(name)}</span>
-          <span class="best">${fmt(dur)}</span>
+          <span class="name">${esc(r.name)}</span>
+          <span class="best">${fmt(r.dur)}</span>
           <span class="gap">${gap}</span>
         </div>`;
       })
@@ -714,4 +781,5 @@ async function refreshAllTimeLeaderboard() {
 // ---------------------------------------------------------------
 setSyncDot(supabase ? "pending" : null);
 loadDrivers();
-showScreen("drivers");
+loadRaces();
+showScreen("races");
