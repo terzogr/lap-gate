@@ -442,11 +442,36 @@ async function startCamera() {
 }
 function stopCamera() {
   armed = false;
+  releaseWakeLock();
   if (stream) {
     stream.getTracks().forEach((t) => t.stop());
     stream = null;
   }
 }
+
+// ---------------------------------------------------------------
+// Screen wake lock — without this, the phone can lock or the browser
+// can suspend the camera mid-race, silently killing lap detection.
+// ---------------------------------------------------------------
+let wakeLock = null;
+async function requestWakeLock() {
+  if (!("wakeLock" in navigator)) return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => { wakeLock = null; });
+  } catch (e) {
+    console.warn("Wake lock failed:", e.message || e);
+  }
+}
+function releaseWakeLock() {
+  if (wakeLock) {
+    wakeLock.release().catch(() => {});
+    wakeLock = null;
+  }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && armed) requestWakeLock();
+});
 
 async function populateDeviceList() {
   try {
@@ -657,6 +682,7 @@ mainBtn.addEventListener("click", () => {
   if (!currentDriverId) return;
   if (!armed) {
     ensureAudio();
+    requestWakeLock();
     armed = true;
     startTime = performance.now();
     lastLapTime = 0;
@@ -666,6 +692,7 @@ mainBtn.addEventListener("click", () => {
     statusText.textContent = "waiting for first crossing";
   } else {
     armed = false;
+    releaseWakeLock();
     mainBtn.textContent = "Start";
     mainBtn.classList.remove("stop");
     statusText.textContent = "stopped";
