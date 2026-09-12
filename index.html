@@ -345,7 +345,7 @@
   async function startCamera(){
     if(!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
       camMsg.style.display = 'flex';
-      camMsg.textContent = 'This browser can\\'t access the camera here. Make sure the page was opened as a normal https:// page (not an in-app preview), then reload.';
+      camMsg.textContent = "This browser can't access the camera here. Make sure the page was opened as a normal https:// page (not an in-app preview), then reload.";
       return;
     }
     try{
