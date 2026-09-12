@@ -1,9 +1,13 @@
--- Full schema for a fresh Supabase project. Run once in the SQL editor
--- (Database -> SQL Editor -> New query).
+-- Upgrades an existing Lap Gate project (which only had a "laps" table,
+-- with laps identified by browser session instead of by driver) to the
+-- new drivers/races model. Run once in your Supabase project's SQL editor.
 --
--- If you already ran an earlier version of this file and have a "laps"
--- table from before drivers/races existed, use migration-2-drivers-races.sql
--- instead — it upgrades your existing project without losing data.
+-- Safe to run even if "laps" already has rows in the old shape: this
+-- renames the old table to laps_legacy instead of dropping it, so nothing
+-- is deleted. Once you've confirmed the app works, you can drop
+-- laps_legacy yourself if you don't need that old data.
+
+alter table if exists laps rename to laps_legacy;
 
 create table if not exists drivers (
   id uuid primary key default gen_random_uuid(),
@@ -30,15 +34,15 @@ create table if not exists laps (
 create index if not exists races_driver_id_idx on races(driver_id);
 create index if not exists laps_race_id_idx on laps(race_id);
 
--- Row Level Security: this app has no login, so anyone with your anon key
--- (which is visible in the app's public JS) can read/write these tables,
--- including deleting drivers/races/laps from the app's delete buttons.
--- That's fine for a personal hobby tracker with no sensitive data, but
--- don't reuse this project for anything you'd want private.
 alter table drivers enable row level security;
 alter table races enable row level security;
 alter table laps enable row level security;
 
+drop policy if exists "anon full access to drivers" on drivers;
 create policy "anon full access to drivers" on drivers for all to anon using (true) with check (true);
+
+drop policy if exists "anon full access to races" on races;
 create policy "anon full access to races" on races for all to anon using (true) with check (true);
+
+drop policy if exists "anon full access to laps" on laps;
 create policy "anon full access to laps" on laps for all to anon using (true) with check (true);
