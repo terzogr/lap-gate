@@ -469,7 +469,6 @@ camSelect.addEventListener("change", () => {
 
 video.addEventListener("loadedmetadata", () => {
   const vw = video.videoWidth, vh = video.videoHeight;
-  camWrap.style.aspectRatio = vw && vh ? vw + "/" + vh : "4/3";
   sample.width = 160;
   sample.height = Math.max(40, Math.round(160 * (vh / vw || 0.75)));
   resizeOverlay();
