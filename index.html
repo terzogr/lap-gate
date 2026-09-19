@@ -87,6 +87,8 @@
       </div>
     </div>
 
+    <button class="btn-main" id="mainBtn">Start</button>
+
     <div class="stats">
       <div class="stat laps">
         <div class="label">LAPS</div>
@@ -116,22 +118,17 @@
       <div id="atList" class="lb-list"></div>
     </details>
 
-    <div class="controls">
-      <div class="primary-row">
-        <button class="btn-main" id="mainBtn">Start</button>
+    <details class="calib">
+      <summary>Calibrate<span id="calibSummary" style="font-weight:400;">sensitivity 50 · min gap 1.5s</span></summary>
+      <div class="calib-row">
+        <div class="row-label"><span>Sensitivity</span><span id="sensVal">50</span></div>
+        <input type="range" id="sensSlider" min="1" max="100" value="50">
       </div>
-      <details class="calib">
-        <summary>Calibrate<span id="calibSummary" style="font-weight:400;">sensitivity 50 · min gap 1.5s</span></summary>
-        <div class="calib-row">
-          <div class="row-label"><span>Sensitivity</span><span id="sensVal">50</span></div>
-          <input type="range" id="sensSlider" min="1" max="100" value="50">
-        </div>
-        <div class="calib-row">
-          <div class="row-label"><span>Min. time between laps</span><span id="gapVal">1.5s</span></div>
-          <input type="range" id="gapSlider" min="3" max="50" value="15">
-        </div>
-      </details>
-    </div>
+      <div class="calib-row">
+        <div class="row-label"><span>Min. time between laps</span><span id="gapVal">1.5s</span></div>
+        <input type="range" id="gapSlider" min="3" max="50" value="15">
+      </div>
+    </details>
   </section>
 
 </div>
