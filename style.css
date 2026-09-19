@@ -103,7 +103,7 @@ h1{ font-size:17px; font-weight:600; margin:0; letter-spacing:.2px; }
 }
 
 .camera-card{ position:relative; background:#000; border-radius:14px; overflow:hidden; border:1px solid var(--panel-line); flex-shrink:0; }
-.camera-wrap{ position:relative; width:100%; height:24.7vh; max-height:213px; }
+.camera-wrap{ position:relative; width:100%; height:25vh; max-height:300px; }
 video{ display:block; width:100%; height:100%; object-fit:cover; }
 canvas.overlay{ position:absolute; inset:0; width:100%; height:100%; touch-action:none; }
 .cam-msg{
@@ -132,7 +132,7 @@ select.chip{ -webkit-appearance:none; appearance:none; max-width:120px; }
 
 .laps-panel{
   background:var(--panel); border:1px solid var(--panel-line); border-radius:12px;
-  flex:1; min-height:80px; max-height:170px; overflow-y:auto;
+  flex:1; min-height:160px; max-height:340px; overflow-y:auto;
 }
 .laps-panel .empty{ padding:16px; color:var(--text-dim); font-size:13px; text-align:center; }
 .lap-row{ display:flex; align-items:center; justify-content:space-between; padding:9px 14px; border-bottom:1px solid var(--panel-line); font-size:14px; gap:8px; }
@@ -172,4 +172,4 @@ input[type=range]{ width:100%; accent-color:var(--amber); }
 .lb-row.leader .name{ color:var(--amber); }
 .lb-empty{ padding:10px 0; color:var(--text-dim); font-size:13px; }
 
-@media (min-height: 760px){ .laps-panel{ max-height:220px; } }
+@media (min-height: 760px){ .laps-panel{ max-height:440px; } }
